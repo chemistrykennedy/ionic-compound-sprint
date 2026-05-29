@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kennedy College Ionic Compound Sprint</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-theme="light">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">✳</span>
+      <span class="brand-text"><strong>Kennedy College</strong> Ionic Compound Sprint</span>
+    </div>
+    <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light/dark">🌙</button>
+  </header>
+
+  <main class="app">
+    <!-- ============ START SCREEN ============ -->
+    <section id="startScreen" class="screen">
+      <div class="card start-card">
+        <h1>Write 16 ionic formulas, against the clock.</h1>
+        <p class="lead">Type each compound's chemical formula — correct symbols, numbers and
+          parentheses, no spaces. They get harder as you go. Ready?</p>
+
+        <form id="startForm" class="start-form" autocomplete="off">
+          <label for="nameInput">Your name</label>
+          <div class="start-row">
+            <input id="nameInput" type="text" placeholder="e.g. Ada" maxlength="24" autocomplete="off" />
+            <button id="startBtn" type="submit">Go ▶</button>
+          </div>
+        </form>
+
+        <div class="history" id="historyPanel">
+          <div class="history-head">
+            <span>Recent times</span>
+            <span class="best" id="bestTime">Best: —</span>
+          </div>
+          <ol id="historyList" class="history-list"><li class="empty">No runs yet</li></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ QUIZ SCREEN ============ -->
+    <section id="quizScreen" class="screen hidden">
+      <div class="quiz-header">
+        <div class="player">Go, <span id="playerName"></span>!</div>
+        <div class="timer" id="timer">00:00.00</div>
+      </div>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="grid" id="grid"></div>
+    </section>
+  </main>
+
+  <!-- ============ RESULT OVERLAY ============ -->
+  <div id="stars" class="stars" aria-hidden="true"></div>
+  <div id="resultOverlay" class="overlay hidden">
+    <div class="card result-card">
+      <div class="result-emoji">🏆</div>
+      <h2 id="resultTitle">Done!</h2>
+      <div class="result-time" id="resultTime">00:00.00</div>
+      <div class="result-meta" id="resultMeta"></div>
+      <p class="share-hint">📸 Screenshot this to share your time!</p>
+      <button id="againBtn" class="again-btn" type="button">Play again</button>
+    </div>
+  </div>
+
+  <script src="ions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
