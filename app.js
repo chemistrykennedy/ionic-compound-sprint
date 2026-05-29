@@ -101,6 +101,10 @@ function loadHistory() {
 function saveHistory(list) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(-20)));
 }
+// Question-count colours — must match the round buttons in styles.css.
+const COUNT_COLORS = { 4: "#4b5d75", 8: "#3f6f63", 16: "#5d4a6b" };
+function countColor(n) { return COUNT_COLORS[n] || "var(--muted)"; }
+
 function renderHistory() {
   const list = loadHistory().slice(-5).reverse();
   const ol = $("historyList");
@@ -110,7 +114,11 @@ function renderHistory() {
   } else {
     for (const r of list) {
       const li = document.createElement("li");
-      li.innerHTML = `<span class="who">${escapeHtml(r.name || "—")}</span><span>${fmt(r.ms)}</span>`;
+      const q = r.count
+        ? `<span class="run-q" style="color:${countColor(r.count)}">${r.count}</span>`
+        : '<span class="run-q"></span>';
+      li.innerHTML =
+        `<span class="who">${escapeHtml(r.name || "—")}</span>${q}<span>${fmt(r.ms)}</span>`;
       ol.appendChild(li);
     }
   }
@@ -345,7 +353,7 @@ function finish() {
   state.sessionTimes.push(ms);
 
   const hist = loadHistory();
-  hist.push({ name: state.name, ms, ts: Date.now() });
+  hist.push({ name: state.name, ms, count: state.quiz.length, ts: Date.now() });
   saveHistory(hist);
 
   playFinish();

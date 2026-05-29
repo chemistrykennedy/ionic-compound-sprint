@@ -134,6 +134,7 @@ body {
   margin-bottom: 6px; font-variant-numeric: tabular-nums;
 }
 .history-list li .who { color: var(--muted); }
+.history-list li .run-q { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: center; }
 .history-list li.empty { justify-content: center; color: var(--muted); background: none; }
 
 /* Quiz header */
