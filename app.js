@@ -315,8 +315,7 @@ function focusNext(i) {
 }
 
 /* ---------- Flow ---------- */
-function startQuiz(e) {
-  e.preventDefault();
+function startQuiz() {
   state.name = $("nameInput").value.trim() || "Chemist";
   state.quiz = buildQuiz(state.count);
   state.correct = 0;
@@ -389,22 +388,19 @@ function reset() {
   $("nameInput").select();
 }
 
-/* ---------- Question-count chooser ---------- */
-const countBtns = document.querySelectorAll(".count-btn");
-function setCount(c) {
+/* ---------- Question-count chooser (tapping a number starts the quiz) ---------- */
+function startWithCount(c) {
   state.count = c;
   localStorage.setItem("ifq-count", String(c));
-  countBtns.forEach((b) => {
-    const on = Number(b.dataset.count) === c;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-  });
+  startQuiz();
 }
-countBtns.forEach((b) => b.addEventListener("click", () => setCount(Number(b.dataset.count))));
-setCount(state.count); // reflect saved/default choice
+document.querySelectorAll(".count-btn").forEach((b) =>
+  b.addEventListener("click", () => startWithCount(Number(b.dataset.count)))
+);
 
 /* ---------- Wire up ---------- */
-$("startForm").addEventListener("submit", startQuiz);
+// Enter in the name field starts with the last-used count.
+$("startForm").addEventListener("submit", (e) => { e.preventDefault(); startWithCount(state.count || 16); });
 $("againBtn").addEventListener("click", reset);
 renderHistory();
 $("nameInput").focus();
