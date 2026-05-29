@@ -133,53 +133,124 @@ function playCorrect(step) {
   const ctx = state.audio;
   if (!ctx) return;
   const t = ctx.currentTime;
-  // Rising A HARMONIC MINOR scale -> climbs in pitch with each correct answer.
-  // Harmonic minor (raised 7th, the +3-semitone leap) keeps it minor and tense.
-  const MINOR = [0, 2, 3, 5, 7, 8, 11]; // scale degrees in semitones from the tonic
-  const i = Math.max(0, step - 1);
-  const semi = MINOR[i % 7] + 12 * Math.floor(i / 7);
-  const base = 220; // A3
-  const freq = base * Math.pow(2, semi / 12);
+  // CHROMATIC rise: +1 semitone per correct answer. A relentless half-step climb
+  // is the classic "horror riser" — it never resolves, so tension keeps mounting.
+  const dur = 0.5;
+  const base = 155.56; // E♭3, dark starting point
+  const freq = base * Math.pow(2, (step - 1) / 12);
 
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(0.18, t + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1100 + step * 130, t);
-  gain.connect(ctx.destination);
-  filter.connect(gain);
+  // Master envelope + resonant lowpass that opens as the pitch climbs (more intense).
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, t);
+  master.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+  master.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  master.connect(ctx.destination);
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(650 + step * 160, t);
+  lp.Q.value = 6; // resonant => eerie, whistling edge
+  lp.connect(master);
 
-  // main note + a minor-third above for a tense colour
-  [[freq, "sawtooth", 1], [freq * Math.pow(2, 3 / 12), "triangle", 0.5]].forEach(([f, type, g]) => {
+  // Tremolo: a wavering amplitude that sounds unsettled.
+  const trem = ctx.createGain();
+  trem.gain.value = 1;
+  trem.connect(lp);
+  const tremLfo = ctx.createOscillator();
+  tremLfo.frequency.value = 7;
+  const tremDepth = ctx.createGain();
+  tremDepth.gain.value = 0.3;
+  tremLfo.connect(tremDepth); tremDepth.connect(trem.gain);
+  tremLfo.start(t); tremLfo.stop(t + dur);
+
+  // Vibrato: slow pitch wobble shared by the main voices (creepy instability).
+  const vib = ctx.createOscillator();
+  vib.frequency.value = 5.5;
+  const vibDepth = ctx.createGain();
+  vibDepth.gain.value = freq * 0.008;
+  vib.connect(vibDepth);
+  vib.start(t); vib.stop(t + dur);
+
+  // Voices: two detuned saws (beating = unease) + a TRITONE above (the "evil" interval).
+  const voices = [
+    { f: freq, type: "sawtooth", detune: 9, g: 0.55 },
+    { f: freq, type: "sawtooth", detune: -9, g: 0.55 },
+    { f: freq * Math.pow(2, 6 / 12), type: "triangle", detune: 0, g: 0.2 },
+  ];
+  voices.forEach((v) => {
     const osc = ctx.createOscillator();
-    osc.type = type;
-    osc.frequency.setValueAtTime(f, t);
+    osc.type = v.type;
+    osc.frequency.value = v.f;
+    osc.detune.value = v.detune;
+    vibDepth.connect(osc.frequency);
     const og = ctx.createGain();
-    og.gain.value = g;
-    osc.connect(og); og.connect(filter);
-    osc.start(t); osc.stop(t + 0.36);
+    og.gain.value = v.g;
+    osc.connect(og); og.connect(trem);
+    osc.start(t); osc.stop(t + dur);
   });
+
+  // Low sub-drone on the fixed tonic — the climbing melody pulls away from it,
+  // so the dissonance grows as the quiz progresses.
+  const sub = ctx.createOscillator();
+  sub.type = "sine";
+  sub.frequency.value = base / 2;
+  const sg = ctx.createGain();
+  sg.gain.setValueAtTime(0.0001, t);
+  sg.gain.exponentialRampToValueAtTime(0.16, t + 0.03);
+  sg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  sub.connect(sg); sg.connect(ctx.destination);
+  sub.start(t); sub.stop(t + dur);
 }
-// Triumphant finish chord.
+// Finish: a dark, cinematic sting that lands on a minor chord (with a low boom).
 function playFinish() {
   const ctx = state.audio;
   if (!ctx) return;
   const t = ctx.currentTime;
-  const chord = [440, 523.25, 659.25, 880]; // A minor (A C E A) — minor resolution
+  const dur = 1.7;
+
+  // Filter sweep open for a dramatic "reveal".
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(450, t);
+  lp.frequency.exponentialRampToValueAtTime(4000, t + 0.6);
+  lp.Q.value = 3;
+  lp.connect(ctx.destination);
+
+  // Tremolo shimmer over the whole chord.
+  const trem = ctx.createGain();
+  trem.gain.value = 1;
+  trem.connect(lp);
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 8;
+  const depth = ctx.createGain();
+  depth.gain.value = 0.28;
+  lfo.connect(depth); depth.connect(trem.gain);
+  lfo.start(t); lfo.stop(t + dur);
+
+  const chord = [220, 261.63, 329.63, 440, 880]; // A minor, spread
   chord.forEach((f, i) => {
     const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = "triangle";
+    osc.type = "sawtooth";
     osc.frequency.value = f;
-    const start = t + i * 0.07;
+    osc.detune.value = (i - 2) * 6; // slight detune for richness/unease
+    const g = ctx.createGain();
+    const start = t + i * 0.06;
     g.gain.setValueAtTime(0.0001, start);
-    g.gain.exponentialRampToValueAtTime(0.2, start + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, start + 1.1);
-    osc.connect(g); g.connect(ctx.destination);
-    osc.start(start); osc.stop(start + 1.2);
+    g.gain.exponentialRampToValueAtTime(0.16, start + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 1.4);
+    osc.connect(g); g.connect(trem);
+    osc.start(start); osc.stop(start + 1.45);
   });
+
+  // Low boom underneath.
+  const sub = ctx.createOscillator();
+  sub.type = "sine";
+  sub.frequency.value = 55;
+  const sg = ctx.createGain();
+  sg.gain.setValueAtTime(0.0001, t);
+  sg.gain.exponentialRampToValueAtTime(0.3, t + 0.04);
+  sg.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+  sub.connect(sg); sg.connect(ctx.destination);
+  sub.start(t); sub.stop(t + 1.5);
 }
 
 /* ---------- Timer ---------- */
