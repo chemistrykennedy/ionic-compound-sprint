@@ -11,6 +11,9 @@
   --correct-bg: #e2f4ea;
   --correct-border: #9ad9bb;
   --shadow: 0 18px 40px rgba(30, 41, 70, 0.16);
+  --gold-bg: rgba(243, 188, 58, 0.26);
+  --gold-border: #e0ad36;
+  --gold-text: #8a6410;
 }
 [data-theme="dark"] {
   --bg: #15171e;
@@ -25,6 +28,9 @@
   --correct-bg: #18352a;
   --correct-border: #2f6b50;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --gold-bg: rgba(243, 188, 58, 0.16);
+  --gold-border: #b8902f;
+  --gold-text: #f2c85b;
 }
 
 * { box-sizing: border-box; }
@@ -125,7 +131,8 @@ body {
 
 /* History */
 .history { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 16px; }
-.history-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+.history-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; font-weight: 600; }
+.history-title { font-size: 0.92rem; }
 .history-head .best { color: var(--accent); font-variant-numeric: tabular-nums; }
 .history-list { list-style: none; margin: 12px 0 0; padding: 0; }
 .history-list li {
@@ -134,7 +141,16 @@ body {
   margin-bottom: 6px; font-variant-numeric: tabular-nums;
 }
 .history-list li .who { color: var(--muted); }
-.history-list li .run-q { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: center; }
+
+/* All-time best run — golden, starred row */
+.history-list li.best-row {
+  background: var(--gold-bg);
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 0 14px rgba(243, 188, 58, 0.25);
+  font-weight: 800;
+}
+.history-list li.best-row .who,
+.history-list li.best-row .best-time { color: var(--gold-text); }
 .history-list li.empty { justify-content: center; color: var(--muted); background: none; }
 
 /* Quiz header */

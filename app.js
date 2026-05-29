@@ -101,28 +101,40 @@ function loadHistory() {
 function saveHistory(list) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(-20)));
 }
-// Question-count colours — must match the round buttons in styles.css.
-const COUNT_COLORS = { 4: "#4b5d75", 8: "#3f6f63", 16: "#5d4a6b" };
-function countColor(n) { return COUNT_COLORS[n] || "var(--muted)"; }
+// All-time best for the full 16-question challenge (persists across sessions).
+const BEST16_KEY = "ifq-best16";
+function bestAllTime16() {
+  const v = Number(localStorage.getItem(BEST16_KEY));
+  return v > 0 ? v : null;
+}
+function recordBest16(ms) {
+  const cur = bestAllTime16();
+  if (cur == null || ms < cur) localStorage.setItem(BEST16_KEY, String(ms));
+}
 
 function renderHistory() {
-  const list = loadHistory().slice(-5).reverse();
+  const runs = loadHistory().filter((r) => r.count === 16); // full challenge only
+  const best = bestAllTime16();
+  const list = runs.slice(-5).reverse();
   const ol = $("historyList");
   ol.innerHTML = "";
   if (!list.length) {
-    ol.innerHTML = '<li class="empty">No runs yet</li>';
+    ol.innerHTML = '<li class="empty">No full runs yet</li>';
   } else {
     for (const r of list) {
       const li = document.createElement("li");
-      const q = r.count
-        ? `<span class="run-q" style="color:${countColor(r.count)}">${r.count}</span>`
-        : '<span class="run-q"></span>';
-      li.innerHTML =
-        `<span class="who">${escapeHtml(r.name || "—")}</span>${q}<span>${fmt(r.ms)}</span>`;
+      const isBest = best != null && r.ms === best;
+      if (isBest) {
+        li.className = "best-row";
+        li.innerHTML =
+          `<span class="who">⭐ ${escapeHtml(r.name || "—")}</span>` +
+          `<span class="best-time">${fmt(r.ms)} ⭐</span>`;
+      } else {
+        li.innerHTML = `<span class="who">${escapeHtml(r.name || "—")}</span><span>${fmt(r.ms)}</span>`;
+      }
       ol.appendChild(li);
     }
   }
-  const best = state.sessionTimes.length ? Math.min(...state.sessionTimes) : null;
   $("bestTime").textContent = best == null ? "Best: —" : `Best: ${fmt(best)}`;
 }
 function escapeHtml(s) {
@@ -355,6 +367,7 @@ function finish() {
   const hist = loadHistory();
   hist.push({ name: state.name, ms, count: state.quiz.length, ts: Date.now() });
   saveHistory(hist);
+  if (state.quiz.length === 16) recordBest16(ms); // all-time best for the full challenge
 
   playFinish();
   burstStars();
