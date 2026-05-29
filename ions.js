@@ -127,9 +127,9 @@ function allCombos() {
   return out;
 }
 
-// 16 distinct compounds, rising from easy+common to hard+rare.
-// Sort by difficulty, slice into 16 ascending bins, take one random per bin.
-function buildQuiz() {
+// `count` distinct compounds, rising from easy+common to hard+rare.
+// Sort by difficulty, slice into `count` ascending bins, take one random per bin.
+function buildQuiz(count = 16) {
   const combos = allCombos().sort((p, q) => p.score - q.score || p.name.localeCompare(q.name));
   const n = combos.length;
   const CAP = 3; // max compounds using a capped anion, per quiz
@@ -137,9 +137,9 @@ function buildQuiz() {
   const used = new Set();
   let capCount = 0;
   const ok = (c) => c && !used.has(c.answer) && !(c.capped && capCount >= CAP);
-  for (let i = 0; i < 16; i++) {
-    const start = Math.floor((i * n) / 16);
-    const end = Math.max(start + 1, Math.floor(((i + 1) * n) / 16));
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor((i * n) / count);
+    const end = Math.max(start + 1, Math.floor(((i + 1) * n) / count));
     let pick = null;
     for (let tries = 0; tries < 16; tries++) {
       const cand = combos[start + Math.floor(Math.random() * (end - start))];

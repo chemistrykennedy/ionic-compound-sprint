@@ -19,8 +19,8 @@
     <!-- ============ START SCREEN ============ -->
     <section id="startScreen" class="screen">
       <div class="card start-card">
-        <h1>Write 16 ionic formulas, against the clock.</h1>
-        <p class="lead">Type each compound's chemical formula — correct symbols, numbers and
+        <h1>Write ionic formulas, against the clock.</h1>
+        <p class="lead">Type each compound's chemical formula: correct symbols, numbers and
           parentheses, no spaces. They get harder as you go. Ready?</p>
 
         <form id="startForm" class="start-form" autocomplete="off">
@@ -28,6 +28,12 @@
           <div class="start-row">
             <input id="nameInput" type="text" placeholder="e.g. Ada" maxlength="24" autocomplete="off" />
             <button id="startBtn" type="submit">Go ▶</button>
+          </div>
+
+          <label class="count-label">How many questions?</label>
+          <div class="count-choose" role="group" aria-label="Number of questions">
+            <button type="button" class="count-btn" data-count="8" aria-pressed="false">8</button>
+            <button type="button" class="count-btn" data-count="16" aria-pressed="true">16</button>
           </div>
         </form>
 

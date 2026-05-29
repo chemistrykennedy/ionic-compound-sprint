@@ -5,7 +5,8 @@ const HISTORY_KEY = "ifq-history";
 
 const state = {
   name: "",
-  quiz: [],          // 16 chosen compounds
+  count: Number(localStorage.getItem("ifq-count")) || 16, // 8 or 16 questions
+  quiz: [],          // chosen compounds
   inputs: [],        // input elements
   correct: 0,
   startTime: 0,
@@ -296,16 +297,18 @@ function checkCell(i) {
     input.readOnly = true;
     cell.querySelector(".qmark").textContent = "✓";
     state.correct += 1;
-    $("progressBar").style.width = (state.correct / 16) * 100 + "%";
+    const total = state.quiz.length;
+    $("progressBar").style.width = (state.correct / total) * 100 + "%";
     playCorrect(state.correct);
-    if (state.correct === 16) finish();
+    if (state.correct === total) finish();
     else focusNext(i);
   }
 }
 
 function focusNext(i) {
-  for (let k = 1; k <= 16; k++) {
-    const j = (i + k) % 16;
+  const total = state.quiz.length;
+  for (let k = 1; k <= total; k++) {
+    const j = (i + k) % total;
     const inp = state.inputs[j];
     if (inp && !inp.readOnly) { inp.focus(); inp.select(); return; }
   }
@@ -315,7 +318,7 @@ function focusNext(i) {
 function startQuiz(e) {
   e.preventDefault();
   state.name = $("nameInput").value.trim() || "Chemist";
-  state.quiz = buildQuiz();
+  state.quiz = buildQuiz(state.count);
   state.correct = 0;
   ensureAudio();
 
@@ -385,6 +388,20 @@ function reset() {
   $("nameInput").focus();
   $("nameInput").select();
 }
+
+/* ---------- Question-count chooser ---------- */
+const countBtns = document.querySelectorAll(".count-btn");
+function setCount(c) {
+  state.count = c;
+  localStorage.setItem("ifq-count", String(c));
+  countBtns.forEach((b) => {
+    const on = Number(b.dataset.count) === c;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+countBtns.forEach((b) => b.addEventListener("click", () => setCount(Number(b.dataset.count))));
+setCount(state.count); // reflect saved/default choice
 
 /* ---------- Wire up ---------- */
 $("startForm").addEventListener("submit", startQuiz);
