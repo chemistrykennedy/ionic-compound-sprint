@@ -37,7 +37,7 @@ const CATIONS = [
 const ANIONS = [
   // 1-
   { name: "bromide", f: "Br", a: 1, r: 0 },                 // halide
-  { name: "chlorate", f: "ClO3", a: 1, poly: true, r: 1 },
+  { name: "chlorate", f: "ClO3", a: 1, poly: true, r: 1, cap: true },
   { name: "chloride", f: "Cl", a: 1, r: 0 },                // halide
   { name: "chlorite", f: "ClO2", a: 1, poly: true, r: 2 },
   { name: "cyanide", f: "CN", a: 1, poly: true, r: 1 },
@@ -47,9 +47,9 @@ const ANIONS = [
   { name: "hydrogencarbonate", f: "HCO3", a: 1, poly: true, r: 1 },
   { name: "hydrogensulfate", f: "HSO4", a: 1, poly: true, r: 2 },
   { name: "hydrogensulfide", f: "HS", a: 1, poly: true, r: 2 },
-  { name: "hydrogensulfite", f: "HSO3", a: 1, poly: true, r: 2 },
+  { name: "hydrogensulfite", f: "HSO3", a: 1, poly: true, r: 2, cap: true },
   { name: "hydroxide", f: "OH", a: 1, poly: true, r: 0 },   // common
-  { name: "hypochlorite", f: "ClO", a: 1, poly: true, r: 3, late: true }, // forced to the end
+  { name: "hypochlorite", f: "ClO", a: 1, poly: true, r: 3, late: true, cap: true }, // forced to the end
   { name: "iodide", f: "I", a: 1, r: 0 },                   // halide
   { name: "nitrate", f: "NO3", a: 1, poly: true, r: 0 },    // common
   { name: "nitrite", f: "NO2", a: 1, poly: true, r: 3, late: true },    // forced to the end
@@ -61,11 +61,11 @@ const ANIONS = [
   { name: "dichromate", f: "Cr2O7", a: 2, poly: true, r: 2 },
   { name: "monohydrogenphosphate", f: "HPO4", a: 2, poly: true, r: 3, late: true }, // forced to the end
   { name: "oxide", f: "O", a: 2, r: 0 },                    // common
-  { name: "peroxide", f: "O2", a: 2, poly: true, r: 2 },
+  { name: "peroxide", f: "O2", a: 2, poly: true, r: 2, cap: true },
   { name: "sulfate", f: "SO4", a: 2, poly: true, r: 0 },    // common
   { name: "sulfide", f: "S", a: 2, r: 0 },                  // common
   { name: "sulfite", f: "SO3", a: 2, poly: true, r: 1 },
-  { name: "thiosulfate", f: "S2O3", a: 2, poly: true, r: 2 },
+  { name: "thiosulfate", f: "S2O3", a: 2, poly: true, r: 2, cap: true },
   // 3-
   { name: "citrate", f: "C6H5O7", a: 3, poly: true, r: 3 },
   { name: "nitride", f: "N", a: 3, r: 1 },
@@ -120,6 +120,7 @@ function allCombos() {
         name: `${cat.name} ${an.name}`,
         answer: buildFormula(cat, an),
         score: difficulty(cat, an),
+        capped: !!an.cap, // hypochlorite/chlorate/peroxide/thiosulfate/hydrogensulfite
       });
     }
   }
@@ -131,20 +132,27 @@ function allCombos() {
 function buildQuiz() {
   const combos = allCombos().sort((p, q) => p.score - q.score || p.name.localeCompare(q.name));
   const n = combos.length;
+  const CAP = 3; // max compounds using a capped anion, per quiz
   const chosen = [];
   const used = new Set();
+  let capCount = 0;
+  const ok = (c) => c && !used.has(c.answer) && !(c.capped && capCount >= CAP);
   for (let i = 0; i < 16; i++) {
     const start = Math.floor((i * n) / 16);
     const end = Math.max(start + 1, Math.floor(((i + 1) * n) / 16));
     let pick = null;
-    for (let tries = 0; tries < 12; tries++) {
+    for (let tries = 0; tries < 16; tries++) {
       const cand = combos[start + Math.floor(Math.random() * (end - start))];
-      if (!used.has(cand.answer)) { pick = cand; break; }
+      if (ok(cand)) { pick = cand; break; }
     }
     if (!pick) {
-      pick = combos.slice(start, end).find((c) => !used.has(c.answer))
+      // prefer same bin, then anywhere; respect the cap if at all possible
+      pick = combos.slice(start, end).find(ok)
+          || combos.find(ok)
+          || combos.slice(start, end).find((c) => !used.has(c.answer))
           || combos.find((c) => !used.has(c.answer));
     }
+    if (pick.capped) capCount++;
     used.add(pick.answer);
     chosen.push(pick);
   }
