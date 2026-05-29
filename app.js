@@ -133,10 +133,13 @@ function playCorrect(step) {
   const ctx = state.audio;
   if (!ctx) return;
   const t = ctx.currentTime;
-  // Minor-ish rising scale -> a little tense, climbing in pitch.
-  const semis = [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 24, 26];
-  const base = 196; // G3
-  const freq = base * Math.pow(2, (semis[Math.min(step - 1, semis.length - 1)]) / 12);
+  // Rising A HARMONIC MINOR scale -> climbs in pitch with each correct answer.
+  // Harmonic minor (raised 7th, the +3-semitone leap) keeps it minor and tense.
+  const MINOR = [0, 2, 3, 5, 7, 8, 11]; // scale degrees in semitones from the tonic
+  const i = Math.max(0, step - 1);
+  const semi = MINOR[i % 7] + 12 * Math.floor(i / 7);
+  const base = 220; // A3
+  const freq = base * Math.pow(2, semi / 12);
 
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, t);
@@ -164,7 +167,7 @@ function playFinish() {
   const ctx = state.audio;
   if (!ctx) return;
   const t = ctx.currentTime;
-  const chord = [392, 494, 587, 784]; // G major spread
+  const chord = [440, 523.25, 659.25, 880]; // A minor (A C E A) — minor resolution
   chord.forEach((f, i) => {
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
