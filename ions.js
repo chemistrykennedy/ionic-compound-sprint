@@ -1,69 +1,75 @@
 // Ion data — EXACTLY the cations and anions from the reference sheet, nothing else.
 //   c / a = charge magnitude
 //   poly  = polyatomic (needs parentheses when subscripted)
-//   r     = rarity / unfamiliarity 0..3 (0 = very common, 3 = exotic) -> used to
-//           order the quiz from easy+common towards hard+rare.
+//   r     = familiarity tier 0..3 (0 = very common -> early, 3 = save for the end)
+//
+// Ordering policy (per teacher request):
+//   * Group 1 (Li, Na, K) and Group 2 (Mg, Ca, Ba) cations are the easy cations (r=0).
+//   * Common anions — the halides, oxide, sulfide, hydroxide, nitrate, sulfate,
+//     carbonate, phosphate — are the easy anions (r=0).
+//   * hypochlorite, nitrite, monohydrogenphosphate and ammonium are forced LAST (r=3).
+//   Familiarity dominates the ordering; structural complexity only orders within a tier.
 
 const CATIONS = [
-  { name: "ammonium", f: "NH4", c: 1, poly: true, r: 0 },
+  { name: "ammonium", f: "NH4", c: 1, poly: true, r: 3, late: true },   // forced to the end
   { name: "copper(I)", f: "Cu", c: 1, r: 2 },
   { name: "hydronium", f: "H3O", c: 1, poly: true, r: 3 },
-  { name: "lithium", f: "Li", c: 1, r: 1 },
-  { name: "potassium", f: "K", c: 1, r: 0 },
+  { name: "lithium", f: "Li", c: 1, r: 0 },                 // group 1
+  { name: "potassium", f: "K", c: 1, r: 0 },                // group 1
   { name: "silver", f: "Ag", c: 1, r: 1 },
-  { name: "sodium", f: "Na", c: 1, r: 0 },
-  { name: "barium", f: "Ba", c: 2, r: 1 },
-  { name: "calcium", f: "Ca", c: 2, r: 0 },
-  { name: "copper(II)", f: "Cu", c: 2, r: 0 },
-  { name: "iron(II)", f: "Fe", c: 2, r: 0 },
-  { name: "lead(II)", f: "Pb", c: 2, r: 1 },
-  { name: "magnesium", f: "Mg", c: 2, r: 0 },
+  { name: "sodium", f: "Na", c: 1, r: 0 },                  // group 1
+  { name: "barium", f: "Ba", c: 2, r: 0 },                  // group 2
+  { name: "calcium", f: "Ca", c: 2, r: 0 },                 // group 2
+  { name: "copper(II)", f: "Cu", c: 2, r: 1 },
+  { name: "iron(II)", f: "Fe", c: 2, r: 1 },
+  { name: "lead(II)", f: "Pb", c: 2, r: 2 },
+  { name: "magnesium", f: "Mg", c: 2, r: 0 },               // group 2
   { name: "mercury(II)", f: "Hg", c: 2, r: 2 },
   { name: "nickel(II)", f: "Ni", c: 2, r: 1 },
-  { name: "tin(II)", f: "Sn", c: 2, r: 1 },
-  { name: "zinc", f: "Zn", c: 2, r: 0 },
-  { name: "aluminium", f: "Al", c: 3, r: 0 },
-  { name: "chromium(III)", f: "Cr", c: 3, r: 1 },
-  { name: "iron(III)", f: "Fe", c: 3, r: 0 },
+  { name: "tin(II)", f: "Sn", c: 2, r: 2 },
+  { name: "zinc", f: "Zn", c: 2, r: 1 },
+  { name: "aluminium", f: "Al", c: 3, r: 1 },
+  { name: "chromium(III)", f: "Cr", c: 3, r: 2 },
+  { name: "iron(III)", f: "Fe", c: 3, r: 1 },
   { name: "titanium(IV)", f: "Ti", c: 4, r: 3 },
 ];
 
 const ANIONS = [
   // 1-
-  { name: "bromide", f: "Br", a: 1, r: 0 },
+  { name: "bromide", f: "Br", a: 1, r: 0 },                 // halide
   { name: "chlorate", f: "ClO3", a: 1, poly: true, r: 1 },
-  { name: "chloride", f: "Cl", a: 1, r: 0 },
+  { name: "chloride", f: "Cl", a: 1, r: 0 },                // halide
   { name: "chlorite", f: "ClO2", a: 1, poly: true, r: 2 },
   { name: "cyanide", f: "CN", a: 1, poly: true, r: 1 },
   { name: "dihydrogenphosphate", f: "H2PO4", a: 1, poly: true, r: 3 },
   { name: "ethanoate", f: "CH3COO", a: 1, poly: true, r: 1 },
-  { name: "fluoride", f: "F", a: 1, r: 0 },
+  { name: "fluoride", f: "F", a: 1, r: 0 },                 // halide
   { name: "hydrogencarbonate", f: "HCO3", a: 1, poly: true, r: 1 },
   { name: "hydrogensulfate", f: "HSO4", a: 1, poly: true, r: 2 },
-  { name: "hydrogensulfide", f: "HS", a: 1, poly: true, r: 3 },
-  { name: "hydrogensulfite", f: "HSO3", a: 1, poly: true, r: 3 },
-  { name: "hydroxide", f: "OH", a: 1, poly: true, r: 0 },
-  { name: "hypochlorite", f: "ClO", a: 1, poly: true, r: 2 },
-  { name: "iodide", f: "I", a: 1, r: 0 },
-  { name: "nitrate", f: "NO3", a: 1, poly: true, r: 0 },
-  { name: "nitrite", f: "NO2", a: 1, poly: true, r: 1 },
+  { name: "hydrogensulfide", f: "HS", a: 1, poly: true, r: 2 },
+  { name: "hydrogensulfite", f: "HSO3", a: 1, poly: true, r: 2 },
+  { name: "hydroxide", f: "OH", a: 1, poly: true, r: 0 },   // common
+  { name: "hypochlorite", f: "ClO", a: 1, poly: true, r: 3, late: true }, // forced to the end
+  { name: "iodide", f: "I", a: 1, r: 0 },                   // halide
+  { name: "nitrate", f: "NO3", a: 1, poly: true, r: 0 },    // common
+  { name: "nitrite", f: "NO2", a: 1, poly: true, r: 3, late: true },    // forced to the end
   { name: "perchlorate", f: "ClO4", a: 1, poly: true, r: 2 },
   { name: "permanganate", f: "MnO4", a: 1, poly: true, r: 1 },
   // 2-
-  { name: "carbonate", f: "CO3", a: 2, poly: true, r: 0 },
+  { name: "carbonate", f: "CO3", a: 2, poly: true, r: 0 },  // common
   { name: "chromate", f: "CrO4", a: 2, poly: true, r: 1 },
   { name: "dichromate", f: "Cr2O7", a: 2, poly: true, r: 2 },
-  { name: "monohydrogenphosphate", f: "HPO4", a: 2, poly: true, r: 3 },
-  { name: "oxide", f: "O", a: 2, r: 0 },
+  { name: "monohydrogenphosphate", f: "HPO4", a: 2, poly: true, r: 3, late: true }, // forced to the end
+  { name: "oxide", f: "O", a: 2, r: 0 },                    // common
   { name: "peroxide", f: "O2", a: 2, poly: true, r: 2 },
-  { name: "sulfate", f: "SO4", a: 2, poly: true, r: 0 },
-  { name: "sulfide", f: "S", a: 2, r: 0 },
+  { name: "sulfate", f: "SO4", a: 2, poly: true, r: 0 },    // common
+  { name: "sulfide", f: "S", a: 2, r: 0 },                  // common
   { name: "sulfite", f: "SO3", a: 2, poly: true, r: 1 },
   { name: "thiosulfate", f: "S2O3", a: 2, poly: true, r: 2 },
   // 3-
   { name: "citrate", f: "C6H5O7", a: 3, poly: true, r: 3 },
   { name: "nitride", f: "N", a: 3, r: 1 },
-  { name: "phosphate", f: "PO4", a: 3, poly: true, r: 0 },
+  { name: "phosphate", f: "PO4", a: 3, poly: true, r: 0 },  // common
 ];
 
 function gcd(x, y) { return y === 0 ? x : gcd(y, x % y); }
@@ -81,23 +87,29 @@ function ionPart(ion, n) {
   return ion.poly ? `(${ion.f})${n}` : `${ion.f}${n}`;
 }
 
-// Difficulty = structural complexity + how uncommon the ions are.
-// Higher = harder/less common -> appears later in the quiz.
-function difficulty(cat, an) {
+// Structural complexity (how fiddly the formula is to write).
+function structural(cat, an) {
   const g = gcd(cat.c, an.a);
   const catSub = an.a / g;
   const anSub = cat.c / g;
   const parens = (cat.poly && catSub > 1) || (an.poly && anSub > 1);
   let s = 0;
-  // structural
   s += (cat.c - 1) * 1.2 + (an.a - 1) * 1.2;
   s += (cat.poly ? 1 : 0) + (an.poly ? 1 : 0);
   s += parens ? 3 : 0;
   s += (catSub > 1 ? 1 : 0) + (anSub > 1 ? 1 : 0);
   s += (catSub + anSub) * 0.25;
-  // commonness (familiarity) — weighted so common compounds come first
-  s += (cat.r + an.r) * 1.6;
-  return s;
+  return s; // ~0 .. ~14
+}
+
+// Overall difficulty:
+//   * `late` ions (hypochlorite, nitrite, monohydrogenphosphate, ammonium) get a
+//     huge offset so EVERY compound containing one sorts behind all others -> the end.
+//   * otherwise familiarity tier dominates (x20, never overlapping the ~0..14
+//     structural range), and structural complexity orders within a tier.
+function difficulty(cat, an) {
+  const lateCount = (cat.late ? 1 : 0) + (an.late ? 1 : 0);
+  return lateCount * 1000 + (cat.r + an.r) * 20 + structural(cat, an);
 }
 
 function allCombos() {
