@@ -106,6 +106,7 @@ const SHEET_ID = "1tWukcncyfKDJcxADWsQHKF6TnXSAc9GVpxI6mpLrUfw";
 const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 const LEADER_COUNTS = [4, 8, 16];
 const LEADER_TOP = 10; // names per column
+const IGNORED_NAMES = new Set(["chemist"]); // default blank-name placeholder — never ranked
 
 // After a completion we wait for the new time to show up in the Sheet, then stop.
 let pendingSubmission = null;   // { key, count, ms } — ms is the exact value the Sheet will store
@@ -197,6 +198,7 @@ async function loadLeaderboard() {
       const ms = parseTimeToMs(c[iTime] && c[iTime].v);
       if (!rawName || !isFinite(ms)) continue;
       const key = String(rawName).trim().toLowerCase();
+      if (IGNORED_NAMES.has(key)) continue; // ignore "Chemist" placeholder entries
       const cur = perCount[q].get(key);
       if (!cur || ms < cur.ms) perCount[q].set(key, { name: rawName, ms }); // best time per student
     }
@@ -472,12 +474,14 @@ function finish() {
   setUserName(state.name);
   // Remember what we just submitted (quantised to match the Sheet's mm:ss.cc string),
   // so the leaderboard can wait until that exact time shows up in the Sheet.
-  pendingSubmission = {
-    key: state.name.trim().toLowerCase(),
-    count: state.quiz.length,
-    ms: parseTimeToMs(fmt(ms)),
-  };
-  leaderboardRetries = 8; // ~32s of polling
+  if (!IGNORED_NAMES.has(state.name.trim().toLowerCase())) {
+    pendingSubmission = {
+      key: state.name.trim().toLowerCase(),
+      count: state.quiz.length,
+      ms: parseTimeToMs(fmt(ms)),
+    };
+    leaderboardRetries = 8; // ~32s of polling
+  }
 
   playFinish();
   burstStars();
