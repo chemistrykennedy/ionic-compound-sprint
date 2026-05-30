@@ -144,9 +144,16 @@ function difficulty(cat, an) {
   return lateCount * 1000 + (cat.r + an.r) * 20 + structural(cat, an);
 }
 
+// Anions that may ONLY appear in the final difficult quarter of a quiz.
+const DIFFICULT_ANIONS = new Set([
+  "dihydrogenphosphate", "hydrogensulfide", "hydrogensulfite", "hypochlorite",
+  "nitrite", "perchlorate", "chromate", "monohydrogenphosphate", "peroxide",
+  "sulfite", "thiosulfate", "citrate",
+]);
+
 // A compound is "difficult" if it uses an uncommon ion / unusual anion / late ion.
 function isHard(cat, an) {
-  return !!cat.late || !!an.late || !!an.cap || cat.r >= 2 || an.r >= 2;
+  return !!cat.late || !!an.late || !!an.cap || DIFFICULT_ANIONS.has(an.name) || cat.r >= 2 || an.r >= 2;
 }
 // "Very easy" = a common group 1/2 metal with a common monatomic anion (e.g. NaCl, MgCl2).
 function isVeryEasy(cat, an) {
