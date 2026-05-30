@@ -274,6 +274,24 @@ function playFinish() {
   sub.start(t); sub.stop(t + 1.5);
 }
 
+/* ---------- Log results to Google Form ---------- */
+const FORM_ACTION =
+  "https://docs.google.com/forms/d/e/1FAIpQLSf3D96p4fXdoDMX69b0746h9TtItaZ3rX-f3NBmfL0hMQi88w/formResponse";
+const FORM_FIELDS = { name: "entry.1227311104", count: "entry.952235621", time: "entry.1017530340" };
+
+function logResult(name, count, timeStr) {
+  const status = $("saveStatus");
+  if (status) { status.textContent = "Saving result…"; status.className = "save-status"; }
+  const body = new URLSearchParams();
+  body.set(FORM_FIELDS.name, name);
+  body.set(FORM_FIELDS.count, String(count));
+  body.set(FORM_FIELDS.time, timeStr);
+  // Google Forms blocks reading the response (CORS), so fire-and-forget with no-cors.
+  fetch(FORM_ACTION, { method: "POST", mode: "no-cors", body })
+    .then(() => { if (status) { status.textContent = "✓ Result saved"; status.classList.add("ok"); } })
+    .catch(() => { if (status) { status.textContent = "⚠ Couldn’t save (no connection)"; status.classList.add("warn"); } });
+}
+
 /* ---------- Timer ---------- */
 function tick() {
   if (!state.running) return;
@@ -376,6 +394,7 @@ function finish() {
   $("resultBadge").innerHTML = `<span class="count-btn is-badge" data-count="${n}">${n}</span>`;
   $("resultTitle").textContent = `${state.name}, congratulations!`;
   $("resultTime").textContent = fmt(ms);
+  logResult(state.name, n, fmt(ms)); // send to the Google Form
   const best = Math.min(...state.sessionTimes);
   $("resultMeta").innerHTML =
     (isBest ? '<div class="new-best">⭐ New session best!</div>' : "") +
