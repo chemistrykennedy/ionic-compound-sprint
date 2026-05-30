@@ -141,6 +141,77 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
+/* ---------- Global leaderboard (reads the Google Form's response Sheet) ---------- */
+const SHEET_ID = "1tWukcncyfKDJcxADWsQHKF6TnXSAc9GVpxI6mpLrUfw";
+const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+const LEADER_COUNT = 5;       // top N people
+const LEADER_CHALLENGE = 16;  // only the full 16-question challenge counts
+
+function parseTimeToMs(str) {
+  if (str == null) return Infinity;
+  const parts = String(str).trim().split(":");
+  if (parts.length === 3) return (+parts[0]) * 3600000 + (+parts[1]) * 60000 + parseFloat(parts[2]) * 1000;
+  if (parts.length === 2) return (+parts[0]) * 60000 + parseFloat(parts[1]) * 1000;
+  return Infinity;
+}
+
+// Display as "First L." (first name + last initial).
+function leaderName(raw) {
+  const parts = String(raw || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "—";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
+async function loadLeaderboard() {
+  const box = $("leaderList");
+  if (!box) return;
+  box.innerHTML = '<li class="lb-empty">Loading…</li>';
+  try {
+    const res = await fetch(GVIZ_URL, { cache: "no-store" });
+    const text = await res.text();
+    const json = JSON.parse(text.substring(text.indexOf("(") + 1, text.lastIndexOf(")")));
+    const cols = json.table.cols.map((c) => (c.label || "").toLowerCase());
+    const iName = cols.indexOf("name"), iQ = cols.indexOf("questions"), iTime = cols.indexOf("time");
+
+    const best = new Map(); // one entry per student: normalised name -> { name, ms }
+    for (const row of json.table.rows || []) {
+      const c = row.c; if (!c) continue;
+      if (Number(c[iQ] && c[iQ].v) !== LEADER_CHALLENGE) continue;
+      const rawName = c[iName] && c[iName].v;
+      const ms = parseTimeToMs(c[iTime] && c[iTime].v);
+      if (!rawName || !isFinite(ms)) continue;
+      const key = String(rawName).trim().toLowerCase();
+      const cur = best.get(key);
+      if (!cur || ms < cur.ms) best.set(key, { name: rawName, ms });
+    }
+    const top = [...best.values()].sort((a, b) => a.ms - b.ms).slice(0, LEADER_COUNT);
+    renderLeaderboard(top);
+  } catch (e) {
+    box.innerHTML = '<li class="lb-empty">Couldn’t load leaderboard</li>';
+  }
+}
+
+function renderLeaderboard(top) {
+  const box = $("leaderList");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!top.length) {
+    box.innerHTML = '<li class="lb-empty">No full-challenge times yet — be the first!</li>';
+    return;
+  }
+  const medals = ["🥇", "🥈", "🥉"];
+  top.forEach((e, i) => {
+    const li = document.createElement("li");
+    if (i < 3) li.classList.add("podium");
+    li.innerHTML =
+      `<span class="lb-rank">${medals[i] || i + 1}</span>` +
+      `<span class="lb-name">${escapeHtml(leaderName(e.name))}</span>` +
+      `<span class="lb-time">${fmt(e.ms)}</span>`;
+    box.appendChild(li);
+  });
+}
+
 /* ---------- Audio: tense, rising-pitch reward ---------- */
 function ensureAudio() {
   if (!state.audio) {
@@ -426,6 +497,7 @@ function reset() {
   $("startScreen").classList.remove("hidden");
   $("timer").textContent = "00:00.00";
   renderHistory();
+  loadLeaderboard();
   $("nameInput").focus();
   $("nameInput").select();
 }
@@ -445,4 +517,5 @@ document.querySelectorAll(".count-btn").forEach((b) =>
 $("startForm").addEventListener("submit", (e) => { e.preventDefault(); startWithCount(state.count || 16); });
 $("againBtn").addEventListener("click", reset);
 renderHistory();
+loadLeaderboard();
 $("nameInput").focus();

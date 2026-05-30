@@ -153,6 +153,22 @@ body {
 .history-list li.best-row .best-time { color: var(--gold-text); }
 .history-list li.empty { justify-content: center; color: var(--muted); background: none; }
 
+/* Global leaderboard */
+.leaderboard { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 16px; }
+.lb-head { font-weight: 700; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.lb-sub { font-size: 0.78rem; color: var(--muted); font-weight: 400; }
+.lb-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.lb-list li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 9px; background: var(--surface-2);
+  margin-bottom: 6px;
+}
+.lb-list li.podium { background: linear-gradient(90deg, var(--gold-bg), var(--surface-2)); }
+.lb-rank { width: 1.7em; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
+.lb-empty { justify-content: center; color: var(--muted); background: none; }
+
 /* Quiz header */
 .quiz-header {
   display: flex; align-items: baseline; justify-content: space-between;
