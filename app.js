@@ -1,7 +1,6 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const HISTORY_KEY = "ifq-history";
 
 const state = {
   name: "",
@@ -93,50 +92,18 @@ function fmt(ms) {
   return `${p(m)}:${p(s)}.${p(h)}`;
 }
 
-/* ---------- History (persisted last runs + session best) ---------- */
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
-  catch { return []; }
-}
-function saveHistory(list) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(-20)));
-}
-// All-time best for the full 16-question challenge (persists across sessions).
-const BEST16_KEY = "ifq-best16";
-function bestAllTime16() {
-  const v = Number(localStorage.getItem(BEST16_KEY));
-  return v > 0 ? v : null;
-}
-function recordBest16(ms) {
-  const cur = bestAllTime16();
-  if (cur == null || ms < cur) localStorage.setItem(BEST16_KEY, String(ms));
+/* ---------- Current user identity + personal bests (per question count) ---------- */
+const USER_KEY = "ifq-username";
+const PB_KEY = "ifq-pb";
+function getUserName() { return localStorage.getItem(USER_KEY) || ""; }
+function setUserName(n) { localStorage.setItem(USER_KEY, n); }
+function readPBs() { try { return JSON.parse(localStorage.getItem(PB_KEY)) || {}; } catch { return {}; } }
+function getPB(count) { const v = Number(readPBs()[count]); return v > 0 ? v : null; }
+function recordPB(count, ms) {
+  const o = readPBs();
+  if (!(o[count] > 0) || ms < o[count]) { o[count] = ms; localStorage.setItem(PB_KEY, JSON.stringify(o)); }
 }
 
-function renderHistory() {
-  const runs = loadHistory().filter((r) => r.count === 16); // full challenge only
-  const best = bestAllTime16();
-  const list = runs.slice(-5).reverse();
-  const ol = $("historyList");
-  ol.innerHTML = "";
-  if (!list.length) {
-    ol.innerHTML = '<li class="empty">No full runs yet</li>';
-  } else {
-    for (const r of list) {
-      const li = document.createElement("li");
-      const isBest = best != null && r.ms === best;
-      if (isBest) {
-        li.className = "best-row";
-        li.innerHTML =
-          `<span class="who">⭐ ${escapeHtml(r.name || "—")}</span>` +
-          `<span class="best-time">${fmt(r.ms)} ⭐</span>`;
-      } else {
-        li.innerHTML = `<span class="who">${escapeHtml(r.name || "—")}</span><span>${fmt(r.ms)}</span>`;
-      }
-      ol.appendChild(li);
-    }
-  }
-  $("bestTime").textContent = best == null ? "Best: —" : `Best: ${fmt(best)}`;
-}
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
@@ -144,8 +111,8 @@ function escapeHtml(s) {
 /* ---------- Global leaderboard (reads the Google Form's response Sheet) ---------- */
 const SHEET_ID = "1tWukcncyfKDJcxADWsQHKF6TnXSAc9GVpxI6mpLrUfw";
 const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-const LEADER_COUNT = 5;       // top N people
-const LEADER_CHALLENGE = 16;  // only the full 16-question challenge counts
+const LEADER_COUNTS = [4, 8, 16];
+const LEADER_TOP = 10; // names per column
 
 function parseTimeToMs(str) {
   if (str == null) return Infinity;
@@ -155,61 +122,99 @@ function parseTimeToMs(str) {
   return Infinity;
 }
 
-// Display as "First L." (first name + last initial).
+// Profanity filter (deliberately conservative). Longer strings match anywhere;
+// short ones must be a whole word to avoid false positives (e.g. "Cassidy").
+const RUDE_SUBSTR = ["fuck", "shit", "cunt", "nigg", "faggot", "whore", "pussy", "wanker",
+  "bollock", "bastard", "motherf", "dickhead", "asshole", "arsehole", "bullshit", "dumbass", "retard"];
+const RUDE_WORD = new Set(["ass", "arse", "dick", "cock", "tit", "tits", "fag", "sex", "slut", "bitch",
+  "prick", "twat", "piss", "crap", "penis", "vagina", "boob", "boobs", "nazi", "hitler", "wank", "damn", "butt", "hoe"]);
+function isRude(name) {
+  const lower = String(name || "").toLowerCase();
+  if (RUDE_SUBSTR.some((w) => lower.replace(/[^a-z]/g, "").includes(w))) return true;
+  return lower.split(/[^a-z]+/).filter(Boolean).some((t) => RUDE_WORD.has(t));
+}
+
+// Display as "First L." (first name + last initial); rude names become a ghost.
 function leaderName(raw) {
+  if (isRude(raw)) return "👻";
   const parts = String(raw || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "—";
   if (parts.length === 1) return parts[0];
   return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
 }
 
+// Rows for one column: top 10 (best-per-student), plus the current user's personal
+// best appended after an ellipsis + gap with a 😎 if they're outside the top 10.
+function buildColumn(count, map) {
+  let entries = [...map.values()].map((o) => ({ name: o.name, ms: o.ms, key: o.name.trim().toLowerCase() }));
+  let user = null;
+  const userName = getUserName(), userPb = getPB(count);
+  if (userName && userPb != null) {
+    const key = userName.trim().toLowerCase();
+    const existing = entries.find((e) => e.key === key);
+    const eff = existing ? Math.min(existing.ms, userPb) : userPb;
+    entries = entries.filter((e) => e.key !== key);
+    user = { name: userName, ms: eff, key };
+    entries.push(user);
+  }
+  entries.sort((a, b) => a.ms - b.ms);
+  const ranked = entries.map((e, i) => ({ ...e, rank: i + 1 }));
+  const rows = ranked.slice(0, LEADER_TOP).map((e) => ({ ...e, isUser: !!user && e.key === user.key }));
+  if (user && !rows.some((e) => e.isUser)) {
+    rows.push({ ellipsis: true });
+    rows.push({ ...ranked.find((e) => e.key === user.key), isUser: true, atBottom: true });
+  }
+  return rows;
+}
+
+function renderColumn(listEl, rows) {
+  if (!listEl) return;
+  listEl.innerHTML = "";
+  if (!rows.length) { listEl.innerHTML = '<li class="lb-empty">—</li>'; return; }
+  const medals = ["🥇", "🥈", "🥉"];
+  for (const r of rows) {
+    if (r.ellipsis) {
+      const gap = document.createElement("li"); gap.className = "lb-gap"; listEl.appendChild(gap);
+      const el = document.createElement("li"); el.className = "lb-ellipsis"; el.textContent = "⋯"; listEl.appendChild(el);
+      continue;
+    }
+    const li = document.createElement("li");
+    if (r.isUser) li.classList.add("me");
+    const rank = r.rank <= 3 ? medals[r.rank - 1] : r.rank;
+    const marker = r.atBottom ? "😎 " : "";
+    li.innerHTML =
+      `<span class="lb-rank">${rank}</span>` +
+      `<span class="lb-name">${marker}${escapeHtml(leaderName(r.name))}</span>` +
+      `<span class="lb-time">${fmt(r.ms)}</span>`;
+    listEl.appendChild(li);
+  }
+}
+
 async function loadLeaderboard() {
-  const box = $("leaderList");
-  if (!box) return;
-  box.innerHTML = '<li class="lb-empty">Loading…</li>';
+  const lists = { 4: $("lbList4"), 8: $("lbList8"), 16: $("lbList16") };
+  for (const el of Object.values(lists)) if (el) el.innerHTML = '<li class="lb-empty">Loading…</li>';
   try {
     const res = await fetch(GVIZ_URL, { cache: "no-store" });
     const text = await res.text();
     const json = JSON.parse(text.substring(text.indexOf("(") + 1, text.lastIndexOf(")")));
     const cols = json.table.cols.map((c) => (c.label || "").toLowerCase());
     const iName = cols.indexOf("name"), iQ = cols.indexOf("questions"), iTime = cols.indexOf("time");
-
-    const best = new Map(); // one entry per student: normalised name -> { name, ms }
+    const perCount = { 4: new Map(), 8: new Map(), 16: new Map() };
     for (const row of json.table.rows || []) {
       const c = row.c; if (!c) continue;
-      if (Number(c[iQ] && c[iQ].v) !== LEADER_CHALLENGE) continue;
+      const q = Number(c[iQ] && c[iQ].v);
+      if (!perCount[q]) continue;
       const rawName = c[iName] && c[iName].v;
       const ms = parseTimeToMs(c[iTime] && c[iTime].v);
       if (!rawName || !isFinite(ms)) continue;
       const key = String(rawName).trim().toLowerCase();
-      const cur = best.get(key);
-      if (!cur || ms < cur.ms) best.set(key, { name: rawName, ms });
+      const cur = perCount[q].get(key);
+      if (!cur || ms < cur.ms) perCount[q].set(key, { name: rawName, ms });
     }
-    const top = [...best.values()].sort((a, b) => a.ms - b.ms).slice(0, LEADER_COUNT);
-    renderLeaderboard(top);
+    for (const c of LEADER_COUNTS) renderColumn(lists[c], buildColumn(c, perCount[c]));
   } catch (e) {
-    box.innerHTML = '<li class="lb-empty">Couldn’t load leaderboard</li>';
+    for (const el of Object.values(lists)) if (el) el.innerHTML = '<li class="lb-empty">Couldn’t load</li>';
   }
-}
-
-function renderLeaderboard(top) {
-  const box = $("leaderList");
-  if (!box) return;
-  box.innerHTML = "";
-  if (!top.length) {
-    box.innerHTML = '<li class="lb-empty">No full-challenge times yet — be the first!</li>';
-    return;
-  }
-  const medals = ["🥇", "🥈", "🥉"];
-  top.forEach((e, i) => {
-    const li = document.createElement("li");
-    if (i < 3) li.classList.add("podium");
-    li.innerHTML =
-      `<span class="lb-rank">${medals[i] || i + 1}</span>` +
-      `<span class="lb-name">${escapeHtml(leaderName(e.name))}</span>` +
-      `<span class="lb-time">${fmt(e.ms)}</span>`;
-    box.appendChild(li);
-  });
 }
 
 /* ---------- Audio: tense, rising-pitch reward ---------- */
@@ -453,10 +458,8 @@ function finish() {
   const isBest = ms < prevBest;
   state.sessionTimes.push(ms);
 
-  const hist = loadHistory();
-  hist.push({ name: state.name, ms, count: state.quiz.length, ts: Date.now() });
-  saveHistory(hist);
-  if (state.quiz.length === 16) recordBest16(ms); // all-time best for the full challenge
+  setUserName(state.name);
+  recordPB(state.quiz.length, ms); // personal best for this question count
 
   playFinish();
   burstStars();
@@ -496,7 +499,6 @@ function reset() {
   $("quizScreen").classList.add("hidden");
   $("startScreen").classList.remove("hidden");
   $("timer").textContent = "00:00.00";
-  renderHistory();
   loadLeaderboard();
   $("nameInput").focus();
   $("nameInput").select();
@@ -516,6 +518,5 @@ document.querySelectorAll(".count-btn").forEach((b) =>
 // Enter in the name field starts with the last-used count.
 $("startForm").addEventListener("submit", (e) => { e.preventDefault(); startWithCount(state.count || 16); });
 $("againBtn").addEventListener("click", reset);
-renderHistory();
 loadLeaderboard();
 $("nameInput").focus();
