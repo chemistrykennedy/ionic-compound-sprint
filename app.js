@@ -372,6 +372,8 @@ function finish() {
   playFinish();
   burstStars();
 
+  const n = state.quiz.length;
+  $("resultBadge").innerHTML = `<span class="count-btn is-badge" data-count="${n}">${n}</span>`;
   $("resultTitle").textContent = `${state.name}, nailed it!`;
   $("resultTime").textContent = fmt(ms);
   const best = Math.min(...state.sessionTimes);
