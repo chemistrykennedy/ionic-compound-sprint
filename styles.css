@@ -181,6 +181,8 @@ body {
 .lb-list li.lb-ellipsis { justify-content: center; color: var(--muted); background: none; padding: 0 0 2px; letter-spacing: 2px; }
 .lb-empty { justify-content: center; color: var(--muted); background: none; }
 
+.lb-note { margin: 12px 0 0; font-size: 0.78rem; color: var(--muted); text-align: center; min-height: 1em; }
+
 @media (max-width: 560px) { .lb-cols { grid-template-columns: 1fr; gap: 16px; } }
 
 /* Quiz header */

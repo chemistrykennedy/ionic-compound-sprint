@@ -92,17 +92,10 @@ function fmt(ms) {
   return `${p(m)}:${p(s)}.${p(h)}`;
 }
 
-/* ---------- Current user identity + personal bests (per question count) ---------- */
+/* ---------- Current user identity (just the name; all times come from the Sheet) ---------- */
 const USER_KEY = "ifq-username";
-const PB_KEY = "ifq-pb";
 function getUserName() { return localStorage.getItem(USER_KEY) || ""; }
 function setUserName(n) { localStorage.setItem(USER_KEY, n); }
-function readPBs() { try { return JSON.parse(localStorage.getItem(PB_KEY)) || {}; } catch { return {}; } }
-function getPB(count) { const v = Number(readPBs()[count]); return v > 0 ? v : null; }
-function recordPB(count, ms) {
-  const o = readPBs();
-  if (!(o[count] > 0) || ms < o[count]) { o[count] = ms; localStorage.setItem(PB_KEY, JSON.stringify(o)); }
-}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -113,6 +106,11 @@ const SHEET_ID = "1tWukcncyfKDJcxADWsQHKF6TnXSAc9GVpxI6mpLrUfw";
 const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 const LEADER_COUNTS = [4, 8, 16];
 const LEADER_TOP = 10; // names per column
+
+// After a completion we wait for the new time to show up in the Sheet, then stop.
+let pendingSubmission = null;   // { key, count, ms } — ms is the exact value the Sheet will store
+let leaderboardRetries = 0;
+let leaderboardTimer = null;
 
 function parseTimeToMs(str) {
   if (str == null) return Infinity;
@@ -143,26 +141,17 @@ function leaderName(raw) {
   return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
 }
 
-// Rows for one column: top 10 (best-per-student), plus the current user's personal
-// best appended after an ellipsis + gap with a 😎 if they're outside the top 10.
-function buildColumn(count, map) {
-  let entries = [...map.values()].map((o) => ({ name: o.name, ms: o.ms, key: o.name.trim().toLowerCase() }));
-  let user = null;
-  const userName = getUserName(), userPb = getPB(count);
-  if (userName && userPb != null) {
-    const key = userName.trim().toLowerCase();
-    const existing = entries.find((e) => e.key === key);
-    const eff = existing ? Math.min(existing.ms, userPb) : userPb;
-    entries = entries.filter((e) => e.key !== key);
-    user = { name: userName, ms: eff, key };
-    entries.push(user);
-  }
-  entries.sort((a, b) => a.ms - b.ms);
+// Rows for one column: top 10 (best-per-student) straight from the Sheet, plus the
+// current user (matched by name) appended after an ellipsis + 😎 if outside the top 10.
+function buildColumn(map, userKey) {
+  const entries = [...map.values()]
+    .map((o) => ({ name: o.name, ms: o.ms, key: o.name.trim().toLowerCase() }))
+    .sort((a, b) => a.ms - b.ms);
   const ranked = entries.map((e, i) => ({ ...e, rank: i + 1 }));
-  const rows = ranked.slice(0, LEADER_TOP).map((e) => ({ ...e, isUser: !!user && e.key === user.key }));
-  if (user && !rows.some((e) => e.isUser)) {
-    rows.push({ ellipsis: true });
-    rows.push({ ...ranked.find((e) => e.key === user.key), isUser: true, atBottom: true });
+  const rows = ranked.slice(0, LEADER_TOP).map((e) => ({ ...e, isUser: !!userKey && e.key === userKey }));
+  if (userKey && !rows.some((e) => e.isUser)) {
+    const ur = ranked.find((e) => e.key === userKey);
+    if (ur) { rows.push({ ellipsis: true }); rows.push({ ...ur, isUser: true, atBottom: true }); }
   }
   return rows;
 }
@@ -192,9 +181,9 @@ function renderColumn(listEl, rows) {
 
 async function loadLeaderboard() {
   const lists = { 4: $("lbList4"), 8: $("lbList8"), 16: $("lbList16") };
-  for (const el of Object.values(lists)) if (el) el.innerHTML = '<li class="lb-empty">Loading…</li>';
   try {
-    const res = await fetch(GVIZ_URL, { cache: "no-store" });
+    // Cache-buster defeats Google's edge cache so we get the freshest Sheet data.
+    const res = await fetch(`${GVIZ_URL}&nocache=${Date.now()}`, { cache: "no-store" });
     const text = await res.text();
     const json = JSON.parse(text.substring(text.indexOf("(") + 1, text.lastIndexOf(")")));
     const cols = json.table.cols.map((c) => (c.label || "").toLowerCase());
@@ -209,12 +198,34 @@ async function loadLeaderboard() {
       if (!rawName || !isFinite(ms)) continue;
       const key = String(rawName).trim().toLowerCase();
       const cur = perCount[q].get(key);
-      if (!cur || ms < cur.ms) perCount[q].set(key, { name: rawName, ms });
+      if (!cur || ms < cur.ms) perCount[q].set(key, { name: rawName, ms }); // best time per student
     }
-    for (const c of LEADER_COUNTS) renderColumn(lists[c], buildColumn(c, perCount[c]));
+    const userKey = getUserName().trim().toLowerCase();
+    for (const c of LEADER_COUNTS) renderColumn(lists[c], buildColumn(perCount[c], userKey));
+    handlePending(perCount);
   } catch (e) {
-    for (const el of Object.values(lists)) if (el) el.innerHTML = '<li class="lb-empty">Couldn’t load</li>';
+    for (const el of Object.values(lists)) if (el && !el.querySelector("li:not(.lb-empty)")) {
+      el.innerHTML = '<li class="lb-empty">Couldn’t load</li>';
+    }
   }
+}
+
+// If the player just finished, keep refreshing until their time appears in the Sheet.
+function handlePending(perCount) {
+  const note = $("lbNote");
+  const setNote = (t) => { if (note) note.textContent = t; };
+  if (!pendingSubmission) { setNote(""); return; }
+  const entry = perCount[pendingSubmission.count] && perCount[pendingSubmission.count].get(pendingSubmission.key);
+  const synced = entry && entry.ms <= pendingSubmission.ms + 5; // their Sheet best is at least this good
+  if (synced || leaderboardRetries <= 0) {
+    pendingSubmission = null;
+    setNote("");
+    return;
+  }
+  setNote("Syncing your latest time to the leaderboard…");
+  leaderboardRetries--;
+  clearTimeout(leaderboardTimer);
+  leaderboardTimer = setTimeout(loadLeaderboard, 4000);
 }
 
 /* ---------- Audio: tense, rising-pitch reward ---------- */
@@ -459,7 +470,14 @@ function finish() {
   state.sessionTimes.push(ms);
 
   setUserName(state.name);
-  recordPB(state.quiz.length, ms); // personal best for this question count
+  // Remember what we just submitted (quantised to match the Sheet's mm:ss.cc string),
+  // so the leaderboard can wait until that exact time shows up in the Sheet.
+  pendingSubmission = {
+    key: state.name.trim().toLowerCase(),
+    count: state.quiz.length,
+    ms: parseTimeToMs(fmt(ms)),
+  };
+  leaderboardRetries = 8; // ~32s of polling
 
   playFinish();
   burstStars();
